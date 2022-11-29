@@ -1,7 +1,22 @@
-// svelte.config.js
-const preprocess = require('svelte-preprocess');
+import adapter from "@sveltejs/adapter-static";
+// was "@sveltejs/adapter-auto"
 
-module.exports = {
-    preprocess: preprocess(),
-    // ...other svelte options could go here
+const dev = "production" === "development";
+
+/** @type {import(""@sveltejs/kit").Config} */
+const config = {
+  kit: {
+    adapter: adapter({
+      pages: "docs",
+      assets: "docs",
+    }),
+    paths: {
+      // change below to your repo name
+      base: dev ? "" : "/personal-website",
+    },
+    // hydrate the <div id="svelte"> element in src/app.html
+    target: "#svelte",
+  },
 };
+
+export default config;
