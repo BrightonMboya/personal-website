@@ -507,8 +507,8 @@
 					flex-basis: 0
 
 				p
-					font-size: 1.3vh
-					width: 60%
+					font-size: 2rem
+					width: 90%
 
 				.roles 
 					display: flex
