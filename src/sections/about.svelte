@@ -1,182 +1,140 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+  import { letterSlideIn, maskSlideIn } from "../animations";
+  import { aboutAnchor, loadPagePromise, slickScrollInstance } from "../store";
+  import { loadImage } from "../utils";
+  import Icon from "@iconify/svelte";
 
-import { onMount } from "svelte";
-import { letterSlideIn, maskSlideIn } from "../animations";
-import { aboutAnchor, loadPagePromise, slickScrollInstance } from "../store";
-import { loadImage } from "../utils";
+  // DOM Node binds
+  let aboutSection1Container, aboutSection2Container;
+  let githubLink, emailLink;
+  let profilePicContainer;
+  let title, paragraph, profilePicture;
 
-// DOM Node binds
-let aboutSection1Container, aboutSection2Container;
-let githubLink, emailLink;
-let profilePicContainer;
-let title, paragraph, profilePicture;
+  // Promise which when resolved will trigger svelte animations
+  let section2InViewResolve;
+  let section2InViewPromise = new Promise(
+    (resolve) => (section2InViewResolve = resolve)
+  );
 
-// Promise which when resolved will trigger svelte animations
-let section2InViewResolve;
-let section2InViewPromise = new Promise((resolve) => section2InViewResolve = resolve);
+  onMount(async () => {
+    // Wait for page to load
+    await loadPagePromise;
+    // Set navbar about link's y location to top of aboutContainer
+    $aboutAnchor = aboutSection1Container;
 
-onMount(async () => {
-	// Wait for page to load
-	await loadPagePromise;
-	// Set navbar about link's y location to top of aboutContainer
-	$aboutAnchor = aboutSection1Container;
+    // Add parallax scrolling offsets to slickScroll
+    $slickScrollInstance.addOffset({
+      element: profilePicContainer,
+      speedY: 0.8,
+    });
 
-	// Add parallax scrolling offsets to slickScroll
-	$slickScrollInstance.addOffset({
-		element: profilePicContainer,
-		speedY: 0.8
-	});
+    section2IntroAnimations();
+    section1IntroAnimations();
+  });
 
-	section2IntroAnimations();
-	section1IntroAnimations();
-});
+  // About section
+  function section1IntroAnimations() {
+    // Scroll activated animations powered by anime instead of svelte transitions
+    const titleAnimate = letterSlideIn(title, { delay: 15 });
+    const paragraphAnimate = maskSlideIn(paragraph, {
+      duration: 1000,
+      delay: 200,
+    });
+    const link1Animate = maskSlideIn(emailLink, { delay: 400 });
+    const link2Animate = maskSlideIn(githubLink, { delay: 700 });
+    const profilePictureAnimate = maskSlideIn(profilePicture, {
+      duration: 1200,
+      maskStyles: [
+        { property: "width", value: "100%" },
+        { property: "height", value: "100%" },
+      ],
+    });
 
+    // Run animations when intersection obeserver detects aboutSection1Container to be in scroll view
+    let observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            titleAnimate.anime();
+            paragraphAnimate.anime();
+            link1Animate.anime();
+            link2Animate.anime();
+            profilePictureAnimate.anime("easeInOutQuint");
 
+            observer.disconnect();
+          }
+        });
+      },
+      { root: null, threshold: 0.4 }
+    );
 
-// About section
-function section1IntroAnimations() {
+    observer.observe(aboutSection1Container);
+  }
 
-	// Scroll activated animations powered by anime instead of svelte transitions
-	const titleAnimate = letterSlideIn(title, { delay: 15 });
-	const paragraphAnimate = maskSlideIn(paragraph, { duration: 1000, delay: 200 });
-	const link1Animate = maskSlideIn(emailLink, { delay: 400 });
-	const link2Animate = maskSlideIn(githubLink, { delay: 700 });
-	const profilePictureAnimate = maskSlideIn(profilePicture, { duration: 1200,
-		maskStyles: [
-			{ property: "width", value: "100%"},
-			{ property: "height", value: "100%"}
-		]
-	});
+  function section2IntroAnimations() {
+    // Resolve animations promise when intersection obeserver detects aboutSection2Container to be in scroll view
+    let observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            section2InViewResolve();
 
-	// Run animations when intersection obeserver detects aboutSection1Container to be in scroll view
-	let observer = new IntersectionObserver((entries) => { 
-		entries.forEach(entry => {
-			if (entry.isIntersecting) {
+            observer.disconnect();
+          }
+        });
+      },
+      { root: null, threshold: 0.4 }
+    );
 
-				titleAnimate.anime();
-				paragraphAnimate.anime();
-				link1Animate.anime();
-				link2Animate.anime();
-				profilePictureAnimate.anime("easeInOutQuint");
-				
-				observer.disconnect();
-			}
-		});
-	}, { root: null, threshold: 0.4 });
-	
-	observer.observe(aboutSection1Container);
-}
-
-// Skills and awards section
-function section2IntroAnimations() {
-	// Resolve animations promise when intersection obeserver detects aboutSection2Container to be in scroll view
-	let observer = new IntersectionObserver((entries) => { 
-		entries.forEach(entry => {
-			if (entry.isIntersecting) {
-				section2InViewResolve();
-				
-				observer.disconnect();
-			}
-		});
-	}, { root: null, threshold: 0.4 });
-	
-	observer.observe(aboutSection2Container);
-}
-
+    observer.observe(aboutSection2Container);
+  }
 </script>
 
 <div id="content-container" class="about" bind:this={aboutSection1Container}>
-	<div class="content-wrapper">
-		<h1 class="title" bind:this={title}>
-			The Name's<br>Musab
-		</h1>
-		<div bind:this={paragraph}>
-			<p class="paragraph">
-				I'm a web developer from British Columbia, Canada. I specialize in designing and developing web experiences<br><br>I work with organizations and individuals to create beautiful, responsive, and scalable web products tailor-made for them. Think we can make something great together? Let's talk over email.
-			</p>
-		</div>
-		<div class="social-button-wrapper">
-			<div bind:this={emailLink}>
-				<span class="button"><a href="mailto:musabhassan04@gmail.com" target="_blank" class="clickable sublink link">Email Me</a></span>
-			</div>
-			<div bind:this={githubLink}>
-				<span class="button" bind:this={githubLink}><a href="https://github.com/Musab-Hassan" target="_blank" class="clickable sublink link">Github</a></span>
-			</div>
-		</div>
-	</div>
-	<div class="profile-image" bind:this={profilePicContainer}>
-		{#await loadImage("assets/imgs/profile-photo.jpg") then src}
-			<img src="{src}" bind:this={profilePicture} alt="Musab's Cover" class="profile-pic">
-		{/await}
-	</div>
+  <div class="content-wrapper">
+    <h1 class="title" bind:this={title}>
+      The Name's<br />Brighton
+    </h1>
+    <div bind:this={paragraph}>
+      <p class="paragraph">
+        I'm a web developer from Rwanda. I specialize in developing web apps<br
+        /><br />My tech stack is the t3-stack, TypeScript, Tailwind, NextJS,
+        Prisma and tRPC.
+      </p>
+    </div>
+    <div class="social-button-wrapper">
+      <div bind:this={emailLink}>
+        <span class="button"
+          ><a
+            href="mailto:b.mboya@alustudent.com"
+            target="_blank"
+            class="clickable sublink link">Email Me</a
+          ></span
+        >
+      </div>
+      <div bind:this={githubLink}>
+        <span class="button" bind:this={githubLink}
+          ><a
+            href="https://github.com/BrightonMboya"
+            target="_blank"
+            class="clickable sublink link">Github</a
+          ></span
+        >
+      </div>
+    </div>
+  </div>
+  <div class="profile-image" bind:this={profilePicContainer}>
+    {#await loadImage("assets/imgs/profile.jpg") then src}
+      <img
+        {src}
+        bind:this={profilePicture}
+        alt="Tonero Image"
+        class="profile-pic"
+      />
+    {/await}
+  </div>
 </div>
-
-<div class="horizontal-flex" bind:this={aboutSection2Container}>
-	{#await section2InViewPromise then _}
-		<ul class="list first">
-			<li class="list-title">
-				<div in:letterSlideIn={{ initDelay: 400 }}>
-					Stuff i use a lot
-				</div>
-			</li>
-			<li>
-				<div in:letterSlideIn={{ initDelay: 550 }}>
-					Front-end
-				</div>
-				<div 
-					class="flex-item" 
-					in:maskSlideIn={{ delay: 600 }}>
-					<img src="assets/imgs/svg-icons/angular.svg" alt="angular">
-					<img src="assets/imgs/svg-icons/svelte.svg" alt="svelte">
-				</div>
-			</li>
-			<li>
-				<div in:letterSlideIn={{ initDelay: 650 }}>
-					Mobile
-				</div>
-				<div class="flex-item" in:maskSlideIn={{ delay: 700 }}>
-					<img src="assets/imgs/svg-icons/flutter.svg" alt="flutter">
-					<img src="assets/imgs/svg-icons/android.svg" alt="native android">
-					<img src="assets/imgs/svg-icons/iOS.svg" alt="native ios">
-				</div>
-			</li>
-			<li>
-				<div in:letterSlideIn={{ initDelay: 750 }}>
-					Back-end
-				</div>
-				<div class="flex-item" in:maskSlideIn={{ delay: 800 }}>
-					<img src="assets/imgs/svg-icons/firebase.svg" alt="firebase">
-					<img src="assets/imgs/svg-icons/nodejs.svg" alt="node js">
-					<img src="assets/imgs/svg-icons/php.svg" alt="php">
-					<img src="assets/imgs/svg-icons/mysql.svg" alt="mySQL">
-				</div>
-			</li>
-			<li>
-				<div in:letterSlideIn={{ initDelay: 850 }}>
-					Design
-				</div>
-				<div class="flex-item" 
-					in:maskSlideIn={{ delay: 900 }}>
-					<img src="assets/imgs/svg-icons/illustrator.svg" alt="adobe illustrator">
-					<img src="assets/imgs/svg-icons/xd.svg" alt="adobe xd">
-				</div>
-			</li>
-		</ul>
-		<ul class="list">
-			<li class="list-title">
-				<div in:letterSlideIn={{ initDelay: 400 }}>
-					awards
-				</div>
-			</li>
-			<li>
-				<div in:letterSlideIn={{ initDelay: 550 }}>
-					1x — Awwwards Honors
-				</div>
-			</li>
-		</ul>
-	{/await}
-</div>
-
 
 <style lang="sass">
 

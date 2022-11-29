@@ -1,181 +1,122 @@
 <script lang="ts">
+  import anime from "animejs";
+  import { onMount } from "svelte";
+  import { homeAnchor, loadPagePromise, slickScrollInstance } from "../store";
+  import { loadImage } from "../utils";
 
-import anime from "animejs";
-import { onMount } from "svelte";
-import { homeAnchor, loadPagePromise, slickScrollInstance } from "../store";
-import { loadImage } from "../utils";
+  // DOM Node Binds for animations
+  let homeContainer; // Container
+  let backgroundContainer, backgroundImage; // Offsets
+  let titleWord1, titleWord2, shortDetails, callToAction; // Elements for animations
 
-// DOM Node Binds for animations
-let homeContainer; // Container
-let backgroundContainer, backgroundImage; // Offsets
-let path1, path2, path3, path4; // SVG Paths
-let titleWord1, titleWord2, shortDetails, callToAction; // Elements for animations
+  onMount(async () => {
+    // Wait for page to load
+    await loadPagePromise;
+    // Set navbar home link's y location to top of homeContainer
+    $homeAnchor = homeContainer;
 
-onMount(async () => {
-	// Wait for page to load
-	await loadPagePromise;
-	// Set navbar home link's y location to top of homeContainer
-	$homeAnchor = homeContainer;
+    // Add parallax scrolling offsets to slickScroll
+    $slickScrollInstance.addOffset({
+      element: backgroundContainer,
+      speedY: 0.8,
+    });
 
-	// Add parallax scrolling offsets to slickScroll
-	$slickScrollInstance.addOffset({
-		element: backgroundContainer,
-		speedY: 0.8
-	});
+    introAnimations();
+  });
 
-	introAnimations();
-})
+  // Page load animations
+  function introAnimations() {
+    let animation = [{ strokeDashoffset: "0" }];
 
+    // Animate background image
+    Object.assign(backgroundContainer.style, {
+      height: "0",
+      transform: "scale(1.3)",
+    });
+    backgroundImage.style.transform = "translateY(80%) scale(1.4)";
 
-// Page load animations
-function introAnimations() {
+    anime({
+      targets: backgroundContainer,
+      height: "100%",
+      scale: 1,
+      easing: "cubicBezier(0.165, 0.84, 0.44, 1)",
+      duration: 1500,
+      delay: 500,
+      complete: () => {
+        backgroundContainer.style.boxShadow = "3px 9px 18px rgba(0, 0, 0, 0.2)";
+      },
+    });
+    anime({
+      targets: backgroundImage,
+      translateY: "0",
+      scale: 1,
+      easing: "cubicBezier(0.165, 0.84, 0.44, 1)",
+      duration: 1500,
+      delay: 500,
+    });
 
-	let animation = [{ strokeDashoffset: '0' }];
-
-	// Signature animation using svg strokDashOffset
-	path1.animate(animation, {
-		duration: 1000,
-		delay: 500,
-		easing: 'cubic-bezier(.72,.3,.25,1)',
-		fill: 'forwards' 
-	});
-	path2.animate(animation, {
-		duration: 300,
-		delay: 1500,
-		easing: 'cubic-bezier(.47,.41,.26,1)',
-		fill: 'forwards' 
-	});
-	path3.animate(animation, {
-		duration: 200,
-		delay: 1800,
-		easing: 'cubic-bezier(.47,.41,.26,1)',
-		fill: 'forwards' 
-	});
-	path4.animate(animation, {
-		duration: 1000,
-		delay: 2000,
-		easing: 'cubic-bezier(.47,.41,.26,1)',
-		fill: 'forwards' 
-	});
-
-
-	// Animate background image
-	Object.assign(backgroundContainer.style, {
-		height: "0",
-		transform: "scale(1.3)",
-	});
-	backgroundImage.style.transform = "translateY(80%) scale(1.4)";
-
-	anime({
-		targets: backgroundContainer,
-		height: "100%",
-		scale: 1,
-		easing: "cubicBezier(0.165, 0.84, 0.44, 1)",
-		duration: 1500,
-		delay: 500,
-		complete: () => {
-			backgroundContainer.style.boxShadow = "3px 9px 18px rgba(0, 0, 0, 0.2)";
-		}
-	});
-	anime({
-		targets: backgroundImage,
-		translateY: "0",
-		scale: 1,
-		easing: "cubicBezier(0.165, 0.84, 0.44, 1)",
-		duration: 1500,
-		delay: 500
-	});
-
-
-	// Animate title
-	let titleElems = [titleWord1, titleWord2, shortDetails, callToAction];
-	titleElems.forEach(e => {
-		e.style.transform = "translateY(130%) rotate(10deg)";
-	})
-	anime({
-		targets: titleElems,
-		rotate: "0",
-		translateY: "0%",
-		easing: "cubicBezier(0.165, 0.84, 0.44, 1)",
-		duration: 900,
-		delay: anime.stagger(80, {start: 500})
-	});
-}
-
+    // Animate title
+    let titleElems = [titleWord1, titleWord2, shortDetails, callToAction];
+    titleElems.forEach((e) => {
+      e.style.transform = "translateY(130%) rotate(10deg)";
+    });
+    anime({
+      targets: titleElems,
+      rotate: "0",
+      translateY: "0%",
+      easing: "cubicBezier(0.165, 0.84, 0.44, 1)",
+      duration: 900,
+      delay: anime.stagger(80, { start: 500 }),
+    });
+  }
 </script>
 
-
-
 <div id="content-container" style="padding-top: 23vh" bind:this={homeContainer}>
-	<div class="content-wrapper">
-		<div class="flex">
-			<div class="flex-wrapper first">
+  <div class="content-wrapper">
+    <div class="flex">
+      <div class="flex-wrapper first" />
 
-				<svg id="signature" class="h-signature" x="0px" y="0px" viewBox="0 0 190 136.9">
-					<g>
-						<path
-							bind:this={path1}
-							class="path-1"
-							style="fill:none;stroke:#ffffff;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:miter;stroke-opacity:1;stroke-miterlimit:4;"
-							d="M38.1,51c0,0,4.9-34.4,39.6-37.7c11.1-1.1-11.5,86.2-48.9,87.5c-18.5,0.6,19-69.3,51.7-84.4c21.3-9.8,15.3,26,15.3,26s6.2-9.3,7.9-6.1c1.7,3.1,0.1,5.1,6.9-1.9c1-1.2,13.9,3.3,18.8-1.3c1.4-1.3,6.4,1.3,6.4,1.3"/>
-						<path
-							bind:this={path2}
-							class="path-2"
-							style="fill:none;stroke:#ffffff;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:miter;stroke-opacity:1;stroke-miterlimit:4;"
-							d="M132.2,48.3l-23.9,78.8"/>
-						<path
-							bind:this={path3}
-							class="path-3"
-							style="fill:none;stroke:#ffffff;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:miter;stroke-opacity:1;stroke-miterlimit:4;"
-							d="M110.3,55.3c0,0-0.7,11.7-2.8,18s-6.7,20.2-6.9,24.1"/>
-						<path
-							bind:this={path4}
-							class="path-4"
-							style="fill:none;stroke:#ffffff;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:miter;stroke-opacity:1;stroke-miterlimit:4;"
-							d="M122,74.4c0,0-5.9-8-17.1-6.7c-11.1,1.3-20.2,11.3-21.1,12.6c-0.9,1.3-10,9.6,2.2,15s38.9-7.2,38.9-7.2s17.8-10,18.9-10s-4.6,5.9-4.3,7.2c0.4,1.3,2.8,2,7.2-1.5c1-0.8,17.2-0.8,22.2,1c1.9,0.7,3.5-0.2,5-1.4c1-0.8,9.4,2,9.4,2"/>
-					</g>
-				</svg>
+      <div class="flex-wrapper second">
+        <h1 class="title">
+          <div class="title-mask">
+            <div class="word" bind:this={titleWord1}>Brighton</div>
+          </div>
+          <br />
+          <div class="title-mask">
+            <div class="word" bind:this={titleWord2}>Mboya</div>
+          </div>
+        </h1>
+        <div class="occupation mask">
+          <p class="paragraph" bind:this={shortDetails}>
+            Front-end Developer based in Rwanda
+          </p>
+        </div>
+        <div class="wrapper action-mask">
+          <div class="action" bind:this={callToAction}>
+            <div class="mask">
+              {#await loadImage("assets/imgs/scroll_arrow.png") then src}
+                <img {src} alt="" />
+              {/await}
+            </div>
+            <div>scroll</div>
+          </div>
+        </div>
+      </div>
 
-			</div>
-			
-			<div class="flex-wrapper second">
-				<h1 class = "title">
-					<div class="title-mask">
-						<div class="word" bind:this={titleWord1}>Musab</div>
-					</div><br> 
-					<div class="title-mask">
-						<div class="word" bind:this={titleWord2}>Hassan</div>
-					</div>
-				</h1>
-				<div class="occupation mask">
-					<p class = "paragraph" bind:this={shortDetails}>
-						web developer from british columbia, canada
-					</p>
-				</div>
-				<div class="wrapper action-mask">
-					<div class="action" bind:this={callToAction}>
-						<div class="mask">
-							{#await loadImage("assets/imgs/scroll_arrow.png") then src}
-								<img src="{src}" alt="">
-							{/await}
-						</div>
-						<div>
-							scroll
-						</div>
-					</div>
-				</div>
-			</div>
-
-			<div class="parallax-wrapper home-back" bind:this={backgroundContainer}>
-				{#await loadImage("assets/imgs/home-back.jpg") then src}
-					<img src="{src}" bind:this={backgroundImage} draggable="false" alt="Home Background" style="width:100%; height: 100%; object-fit: cover;">
-				{/await}
-			</div>
-		</div>
-	</div>
+      <div class="parallax-wrapper home-back" bind:this={backgroundContainer}>
+        {#await loadImage("assets/imgs/home-back.jpg") then src}
+          <img
+            {src}
+            bind:this={backgroundImage}
+            draggable="false"
+            alt="Home Background"
+            style="width:100%; height: 100%; object-fit: cover;"
+          />
+        {/await}
+      </div>
+    </div>
+  </div>
 </div>
-
-
 
 <style lang="sass">
 
@@ -228,8 +169,9 @@ function introAnimations() {
 				overflow: hidden
 
 			.h-signature
-				width: 35vh
+				width: 20vh
 				margin-left: -6vh
+				
 
 			.occupation
 				position: relative
@@ -294,9 +236,6 @@ function introAnimations() {
 			border-radius: 1.5vh
 
 @media only screen and (min-width: 1250px)
-	.h-signature
-		display: block
-
 	.occupation
 		width: 100%
 
@@ -332,22 +271,6 @@ function introAnimations() {
 		width: 70%
 
 
-#signature
-	.path-1
-		stroke-dasharray: 365
-		stroke-dashoffset: 365
-	
-	.path-2
-		stroke-dasharray: 85
-		stroke-dashoffset: 85
-
-	.path-3
-		stroke-dasharray: 45
-		stroke-dashoffset: 45
-
-	.path-4
-		stroke-dasharray: 180
-		stroke-dashoffset: 180
 
 
 @keyframes scrollArrowLoop

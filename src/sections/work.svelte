@@ -1,307 +1,377 @@
 <script lang="ts">
+  import { getGPUTier } from "detect-gpu";
+  import { onMount } from "svelte";
+  import { fade } from "svelte/transition";
+  import { ImageRenderer } from "../effects/work-slider/renderer";
+  import {
+    letterSlideIn,
+    letterSlideOut,
+    maskSlideIn,
+    maskSlideOut,
+    workImageIntro,
+    workListIntro,
+  } from "../animations";
+  import {
+    isMobile,
+    isWorkScroll,
+    loadPagePromise,
+    workAnchor,
+    workItemsFetch,
+    workScrollSpeed,
+  } from "../store";
+  import { loadImage } from "../utils";
 
-import { getGPUTier } from 'detect-gpu';
-import { onMount } from "svelte";
-import { fade } from "svelte/transition";
-import { ImageRenderer } from "../effects/work-slider/renderer";
-import { letterSlideIn, letterSlideOut, maskSlideIn, maskSlideOut, workImageIntro, workListIntro } from "../animations";
-import { isMobile, isWorkScroll, loadPagePromise, workAnchor, workItemsFetch, workScrollSpeed } from "../store";
-import { loadImage } from "../utils";
+  /* Slider calculations and rendering */
+  class WorkSlider {
+    currentMouseX = 0;
+    initialMouseX = 0;
+    currentPosition = 0;
+    targetPosition = 0;
+    initialPosition = 0;
+    offsetSpeed = 5000;
+    lerpSpeed = 0.1;
 
-/* Slider calculations and rendering */
-class WorkSlider {
+    onHold = (e) => {
+      if (
+        currentActive != null ||
+        isMouseDown ||
+        e.target.classList.contains("button")
+      )
+        return;
 
-	currentMouseX = 0; 
-	initialMouseX = 0;
-	currentPosition = 0; 
-	targetPosition = 0; 
-	initialPosition = 0;
-	offsetSpeed = 5000; 
-	lerpSpeed = 0.1;
+      this.initialMouseX = e.clientX;
+      this.currentMouseX = e.clientX;
+      isWorkScroll.set(true);
 
-    onHold = e => {
-        if (currentActive != null || isMouseDown || e.target.classList.contains("button")) return;
+      if (isMouseDown) {
+        let style = window.getComputedStyle(listContainer);
+        let matrix = new WebKitCSSMatrix(style.transform);
 
-        this.initialMouseX = e.clientX;
-		this.currentMouseX = e.clientX;
-        isWorkScroll.set(true);
-
-        if (isMouseDown) {
-            let style = window.getComputedStyle(listContainer);
-            let matrix = new WebKitCSSMatrix(style.transform);
-
-            this.initialPosition = matrix.m41;
-        }
-    }
+        this.initialPosition = matrix.m41;
+      }
+    };
 
     onRelease() {
-        isWorkScroll.set(false);
+      isWorkScroll.set(false);
     }
- 
-    onMouseMove = e => {
-    	if (!isMouseDown) return; 
-		this.currentMouseX = e.clientX;
 
-        let diff = (this.currentMouseX - this.initialMouseX) * -1;
-		this.targetPosition = Math.round((this.initialPosition - (this.offsetSpeed * (diff / document.body.clientWidth))) * 100) / 100;
-    }
+    onMouseMove = (e) => {
+      if (!isMouseDown) return;
+      this.currentMouseX = e.clientX;
+
+      let diff = (this.currentMouseX - this.initialMouseX) * -1;
+      this.targetPosition =
+        Math.round(
+          (this.initialPosition -
+            this.offsetSpeed * (diff / document.body.clientWidth)) *
+            100
+        ) / 100;
+    };
 
     animate = () => {
-		if (currentActive === null) {
-			let endPoint = listContainer.offsetWidth - document.body.clientWidth
-			if (endPoint < 0) endPoint = listContainer.offsetWidth;
+      if (currentActive === null) {
+        let endPoint = listContainer.offsetWidth - document.body.clientWidth;
+        if (endPoint < 0) endPoint = listContainer.offsetWidth;
 
-			// Checks for disabling overscrolling
-			if (this.targetPosition > 0) this.targetPosition = 0;
-			if (this.targetPosition <= (endPoint * -1)) this.targetPosition = - endPoint;
-		}
+        // Checks for disabling overscrolling
+        if (this.targetPosition > 0) this.targetPosition = 0;
+        if (this.targetPosition <= endPoint * -1)
+          this.targetPosition = -endPoint;
+      }
 
-        // Lerp easing
-        this.currentPosition = this.lerp(this.currentPosition, this.targetPosition, this.lerpSpeed);
-		
-        workScrollSpeed.set(Math.round((this.currentPosition - this.targetPosition) * 100) / 100); // Set Svelte Store value for the Canvas effect
-        listContainer.style.transform = `translate3d(${ Math.round(this.currentPosition * 100) / 100 }px, 0px, 0px)`;
+      // Lerp easing
+      this.currentPosition = this.lerp(
+        this.currentPosition,
+        this.targetPosition,
+        this.lerpSpeed
+      );
 
-        requestAnimationFrame(() => this.animate());
+      workScrollSpeed.set(
+        Math.round((this.currentPosition - this.targetPosition) * 100) / 100
+      ); // Set Svelte Store value for the Canvas effect
+      listContainer.style.transform = `translate3d(${
+        Math.round(this.currentPosition * 100) / 100
+      }px, 0px, 0px)`;
+
+      requestAnimationFrame(() => this.animate());
+    };
+
+    lerp(start, end, t) {
+      return start * (1 - t) + end * t;
     }
+  }
 
-	lerp(start, end, t) {
-		return start * (1 - t) + end * t;
-	}
-}
+  let workContainer;
+  let container, listContainer; // Containers for Threejs meshes
+  let images = []; // Array of images to be passed to WebGL Shader
+  let workItems = []; // Array of workItems to be animated
 
+  let breakTitleWords: boolean = false;
 
-let workContainer;
-let container, listContainer; // Containers for Threejs meshes
-let images = []; // Array of images to be passed to WebGL Shader
-let workItems = []; // Array of workItems to be animated
+  let isMouseDown: boolean = false; // is user holding click
+  let currentActive: number = null; // Active work item in the detailsViewer viewed
 
-let breakTitleWords: boolean = false;
+  let data; // JSON Work data fetched from the data.json file
 
-let isMouseDown: boolean = false; // is user holding click
-let currentActive: number = null; // Active work item in the detailsViewer viewed
+  // Intersection observer and promise to enable scroll activated animations
+  let inViewResolve;
+  let inView = new Promise((resolve) => (inViewResolve = resolve));
+  let animationObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          inViewResolve();
+          animationObserver.disconnect();
+        }
+      });
+    },
+    {
+      root: null,
+      threshold: 0.4,
+    }
+  );
 
-let data; // JSON Work data fetched from the data.json file
+  // Svelte Store subscriptions
+  isWorkScroll.subscribe((val) => (isMouseDown = val));
 
-// Intersection observer and promise to enable scroll activated animations
-let inViewResolve;
-let inView = new Promise((resolve) => inViewResolve = resolve);
-let animationObserver = new IntersectionObserver((entries) => { 
-	entries.forEach(entry => {
-		if (entry.isIntersecting) {
-			inViewResolve();
-			animationObserver.disconnect();
-		}
-	});
-}, {
-	root: null,
-	threshold: 0.4
-});
+  const slider = new WorkSlider(); // workItems slider functionality
 
-// Svelte Store subscriptions
-isWorkScroll.subscribe(val => isMouseDown = val);
+  onMount(async () => {
+    // GPU Tier to decide if effects should be enabled
+    const gpuTier = await getGPUTier();
+    // Svelte store for checking if device is a mobile device
+    $isMobile = gpuTier.isMobile;
 
-const slider = new WorkSlider(); // workItems slider functionality
+    data = await workItemsFetch;
+    await loadPagePromise;
+    $workAnchor = workContainer;
 
-onMount(async () => {
+    listContainer.style.transform = "translate3d(0px, 0px, 0px)";
 
-	// GPU Tier to decide if effects should be enabled
-	const gpuTier = await getGPUTier();
-	// Svelte store for checking if device is a mobile device
-	$isMobile = gpuTier.isMobile;
+    // Begin slider animations and effects if device is not a phone
+    if (!gpuTier.isMobile) slider.animate();
+    // ThreeJS warping effect if device can handle it
+    if (gpuTier.tier >= 2 && !gpuTier.isMobile && gpuTier.fps >= 30)
+      new ImageRenderer(container, images);
 
-	data = await workItemsFetch;
-	await loadPagePromise;
-	$workAnchor = workContainer;
+    // Intersection observer for scroll animations
+    animationObserver.observe(workContainer);
+  });
 
-	listContainer.style.transform = "translate3d(0px, 0px, 0px)";
+  // Move slider to active item when it is active
+  function toggleActiveItem(i) {
+    currentActive = currentActive == i ? null : i;
+    if (currentActive != null)
+      slider.targetPosition = -(
+        workItems[i].offsetLeft -
+        window.innerWidth / 4 +
+        window.innerWidth / 10
+      );
+  }
 
-	 // Begin slider animations and effects if device is not a phone
-	if (!gpuTier.isMobile) slider.animate();
-	// ThreeJS warping effect if device can handle it
-	if (gpuTier.tier >= 2 && !gpuTier.isMobile && gpuTier.fps >= 30) new ImageRenderer(container, images);
+  // Prevents clipping of animated letters that have overhang
+  function adjustLineHeight(node) {
+    if (/[gyjqp]/g.test(node.innerText)) node.style.lineHeight = "120%";
+  }
 
-	// Intersection observer for scroll animations
-	animationObserver.observe(workContainer);
-});
-
-
-
-
-
-// Move slider to active item when it is active
-function toggleActiveItem(i) {
-	currentActive = (currentActive == i) ? null : i;
-	if (currentActive != null) slider.targetPosition = -(workItems[i].offsetLeft - (window.innerWidth / 4) + window.innerWidth / 10);
-}
-
-// Prevents clipping of animated letters that have overhang
-function adjustLineHeight(node) {
-	if (/[gyjqp]/g.test(node.innerText)) node.style.lineHeight = "120%";
-}
-
-function titleSlide(node) {
-	let title = letterSlideIn(node, { delay: 5, breakWord: false });
-	title.anime({
-		onComplete: () => breakTitleWords=true
-	});
-}
-
+  function titleSlide(node) {
+    let title = letterSlideIn(node, { delay: 5, breakWord: false });
+    title.anime({
+      onComplete: () => (breakTitleWords = true),
+    });
+  }
 </script>
 
+<div
+  id="content-container"
+  class="work-click-area"
+  style="margin-top: 30vh;"
+  bind:this={workContainer}
+>
+  <div
+    class="content-wrapper"
+    on:mousedown|preventDefault={slider.onHold}
+    on:mouseup={slider.onRelease}
+    on:mouseleave={slider.onRelease}
+    on:mousemove|preventDefault={slider.onMouseMove}
+    bind:this={container}
+    class:disabled={currentActive !== null}
+    use:workListIntro={{ promise: inView }}
+  >
+    <div class:mobile={$isMobile}>
+      <ul class="work-list" bind:this={listContainer} class:hold={isMouseDown}>
+        <!-- Work items -->
+        {#await workItemsFetch then items}
+          {#each items as item, i}
+            <li use:workImageIntro={{ promise: inView, delay: i * 30 }}>
+              <div
+                class="list-item clickable passive"
+                class:ambient={currentActive !== i && currentActive !== null}
+                class:active={currentActive === i}
+                bind:this={workItems[i]}
+              >
+                <div class="img-wrapper">
+                  {#await loadImage(`assets/imgs/work-back/${item.id}/cover.jpg`) then src}
+                    <img
+                      bind:this={images[i]}
+                      {src}
+                      on:dragstart|preventDefault
+                      draggable="false"
+                      alt="{item.title} Background"
+                    />
+                  {/await}
+                </div>
+                {#await inView then _}
+                  <div
+                    class="text-top-wrapper"
+                    class:hidden={currentActive != null || isMouseDown}
+                  >
+                    <p
+                      class="item-index"
+                      in:maskSlideIn={{
+                        delay: i * 30 + 100,
+                        reverse: true,
+                      }}
+                    >
+                      {i.toString().length > 1
+                        ? i + 1
+                        : "0" + (i + 1).toString()}
+                    </p>
+                  </div>
+                  <div
+                    class="text-wrapper"
+                    class:hidden={currentActive != null || isMouseDown}
+                  >
+                    <h1 class="item-title">
+                      <span
+                        in:maskSlideIn={{
+                          duration: 900,
+                          delay: i * 30 + 300,
+                          reverse: true,
+                        }}
+                      >
+                        {item.title}
+                      </span>
+                    </h1>
+                    <div
+                      class="button item-link"
+                      on:click={() => toggleActiveItem(i)}
+                      in:maskSlideIn={{
+                        duration: 900,
+                        delay: i * 30 + 450,
+                        reverse: true,
+                      }}
+                    >
+                      view
+                    </div>
+                  </div>
+                {/await}
+              </div>
+            </li>
+          {/each}
+        {/await}
+      </ul>
+    </div>
 
+    <!-- Active work item details (When a work item is clicked) -->
+    {#if currentActive !== null}
+      <div class="details-container">
+        <div class="wrapper">
+          <div class="top-align">
+            <div class="wrapper">
+              <div class="index">
+                <div in:maskSlideIn out:maskSlideOut>
+                  {#if currentActive < 9}
+                    {"0" + (currentActive + 1)}
+                  {:else}
+                    {currentActive + 1}
+                  {/if}
+                </div>
+              </div>
+              <span class="line" transition:fade />
+              <h6 class="caption">
+                <div in:maskSlideIn out:maskSlideOut>
+                  {data[currentActive].details.summary}
+                </div>
+              </h6>
+            </div>
+          </div>
 
-<div id="content-container" class="work-click-area" style = "margin-top: 30vh;" bind:this="{workContainer}">
-	<div class="content-wrapper" 
-		on:mousedown|preventDefault={slider.onHold}
-		on:mouseup={slider.onRelease}
-		on:mouseleave={slider.onRelease}
-		on:mousemove|preventDefault={slider.onMouseMove}
-		bind:this={container}
-		class:disabled={currentActive !== null}
-		use:workListIntro={{ promise: inView }}
-	>
-		<div class:mobile={$isMobile}>
-			<ul class="work-list" 
-				bind:this={listContainer} 
-				class:hold={isMouseDown}>
+          <div class="mid-align">
+            <h1
+              class="title"
+              use:titleSlide
+              out:letterSlideOut
+              use:adjustLineHeight
+              class:breakTitleWords
+              on:introend={() =>
+                setTimeout(() => (breakTitleWords = true), 100)}
+              on:outrostart={() =>
+                setTimeout(() => (breakTitleWords = false), 100)}
+            >
+              {data[currentActive].title}
+            </h1>
+            <div
+              class="close-button-wrapper"
+              on:click={() => toggleActiveItem(currentActive)}
+            >
+              <div
+                class="close-button"
+                in:maskSlideIn={{ reverse: true }}
+                out:maskSlideOut
+              >
+                &times;
+              </div>
+            </div>
+          </div>
 
-				<!-- Work items -->
-				{#await workItemsFetch then items}
-					{#each items as item, i}
-						<li use:workImageIntro={{ promise: inView, delay: i*30 }}>
-							<div class="list-item clickable passive" 
-								class:ambient="{ currentActive !== i && currentActive !== null }" 
-								class:active="{ currentActive === i }" 
-								bind:this={ workItems[i] }>
-
-								<div class="img-wrapper">
-									{#await loadImage(`assets/imgs/work-back/${item.id}/cover.jpg`) then src}
-										<img bind:this={images[i]} src="{src}" on:dragstart|preventDefault draggable="false" alt="{item.title} Background">
-									{/await}
-								</div>
-								{#await inView then _}
-									<div class="text-top-wrapper" class:hidden={currentActive != null || isMouseDown}>
-										<p 
-											class="item-index"
-											in:maskSlideIn={{
-												delay: (i*30)+100,
-												reverse: true
-											}}>
-											{(i.toString().length > 1) ? (i+1) : "0"+(i+1).toString()}
-										</p>
-									</div>
-									<div class="text-wrapper" class:hidden={currentActive != null || isMouseDown}>
-										<h1 
-											class="item-title" 
-											>
-											<span in:maskSlideIn={{
-												duration: 900, 
-												delay: (i*30)+300,
-												reverse: true 
-											}}>
-												{item.title}
-											</span>
-										</h1>
-										<div 
-											class="button item-link"
-											on:click={() => toggleActiveItem(i)}
-											in:maskSlideIn={{
-												duration: 900,
-												delay: (i*30)+450,
-												reverse: true
-											}}>
-											view
-										</div>
-									</div>
-								{/await}
-							</div>
-						</li>
-					{/each}
-				{/await}
-			</ul>
-		</div>
-
-		<!-- Active work item details (When a work item is clicked) -->
-		{#if currentActive !== null}
-			<div class="details-container">
-				<div class="wrapper">
-					<div class="top-align">
-						<div class="wrapper">
-							<div class="index">
-								<div in:maskSlideIn out:maskSlideOut>
-									{#if (currentActive < 9)}
-										{"0"+(currentActive+1)}
-									{:else}
-										{currentActive+1}
-									{/if}
-								</div>
-							</div>
-							<span class="line" transition:fade></span>
-							<h6 class="caption">
-								<div in:maskSlideIn out:maskSlideOut>{data[currentActive].details.summary}</div>
-							</h6>
-						</div>
-					</div>
-					
-					<div class="mid-align">
-						<h1 class="title" 
-							use:titleSlide
-							out:letterSlideOut 
-							use:adjustLineHeight
-							class:breakTitleWords
-							on:introend={() => setTimeout(() => breakTitleWords = true, 100)}
-							on:outrostart={() => setTimeout(() => breakTitleWords = false, 100)}>
-
-							{data[currentActive].title}
-						</h1>
-						<div class="close-button-wrapper" on:click={() => toggleActiveItem(currentActive)}>
-							<div 
-								class ="close-button"
-								in:maskSlideIn={{ reverse: true }} 
-								out:maskSlideOut>
-
-								&times;
-							</div>
-						</div>
-					</div>
-					
-					<div class="bottom-align">
-						<div>
-							<div in:maskSlideIn={{ reverse: true }} out:maskSlideOut>
-								<p class="paragraph">
-									{data[currentActive].details.description}
-								</p>
-							</div>
-						</div>
-						<div class="links">
-							{#each data[currentActive].links as link}
-								<div style="position: relative">
-									<a in:letterSlideIn out:letterSlideOut href={link.link} target="_blank" class="button no-decor">{link.text}</a>
-									<div class="underline" transition:fade></div>
-								</div><br>
-							{/each}
-							<div class="line" transition:fade></div>
-						</div>
-						<div class="roles">
-							<div class="wrapper">
-								<div in:maskSlideIn={{reverse: true}} out:maskSlideOut>
-									<p class="descriptor">Role</p>
-								</div>
-								<ul>
-									{#each data[currentActive].roles as role, index}
-										<li in:maskSlideIn={{reverse: true, delay: index*100}} out:maskSlideOut>{"+ " + role}</li>
-									{/each}
-								</ul>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-		{/if}
-	</div>
+          <div class="bottom-align">
+            <div>
+              <div in:maskSlideIn={{ reverse: true }} out:maskSlideOut>
+                <p class="paragraph">
+                  {data[currentActive].details.description}
+                </p>
+              </div>
+            </div>
+            <div class="links">
+              {#each data[currentActive].links as link}
+                <div style="position: relative">
+                  <a
+                    in:letterSlideIn
+                    out:letterSlideOut
+                    href={link.link}
+                    target="_blank"
+                    class="button no-decor">{link.text}</a
+                  >
+                  <div class="underline" transition:fade />
+                </div>
+                <br />
+              {/each}
+              <div class="line" transition:fade />
+            </div>
+            <div class="roles">
+              <div class="wrapper">
+                <div in:maskSlideIn={{ reverse: true }} out:maskSlideOut>
+                  <p class="descriptor">Role</p>
+                </div>
+                <ul>
+                  {#each data[currentActive].roles as role, index}
+                    <li
+                      in:maskSlideIn={{ reverse: true, delay: index * 100 }}
+                      out:maskSlideOut
+                    >
+                      {"+ " + role}
+                    </li>
+                  {/each}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    {/if}
+  </div>
 </div>
-
 
 <style lang="sass">
 
@@ -564,6 +634,7 @@ function titleSlide(node) {
 				.img-wrapper
 					width: 100%
 
+
 			&.ambient
 				height: 45vh
 
@@ -580,9 +651,9 @@ function titleSlide(node) {
 				box-shadow: 3px 9px 18px rgba(0, 0, 0, 0.2)
 				
 				img
-					height: 110%
-					width: 110%
-					object-fit: cover
+					height: 100%
+					width: 100%
+					object-fit: contain
 					position: absolute
 					top: 50%
 					left: 50%
