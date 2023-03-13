@@ -13,9 +13,12 @@ This website is built with
 - [Anime (Animations)](https://github.com/juliangarnier/anime)
 - [Three.js (3D Effects)](https://github.com/mrdoob/three.js/)
 
-### Contributing
+### NB
 
-You can fork this repo and modify in whatever way you please however I wont really be accepting pull requests due to the nature of the website being based on "taste" and a showcase of "my work".
+Most of the animations in this repo are just an overkill ngl.
+The animations in the work sections can be reproduced by using threejs.
+Just create a mesh and make the image the material. Then you can animate it using the sin(x) eqn or similar trig equation.
+The ease in and ease out on clicking can be also achieved with css or with framer motion library.
 
 ### License
 
