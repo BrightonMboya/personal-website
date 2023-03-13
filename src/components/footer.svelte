@@ -89,8 +89,7 @@
       <a
         class="button large-text"
         bind:this={fullEmailLinkElem}
-        href="mailto:b.mboya@alustudent.com"
-        target="_blank">b.mboya@alustudent.com</a
+        href="mailto:b.mboya@alustudent.com">b.mboya@alustudent.com</a
       >
     </div>
 

@@ -15,7 +15,7 @@
       {
         "type": "web",
         "text": "Visit Site",
-        "link": "https://shamba-data.vercel.app"
+        "link": "https://shamba-data.com"
       }
     ]
   },
@@ -43,10 +43,10 @@
 
   {
     "id": "afro",
-    "title": "Fashion Store",
+    "title": "Library Management",
     "details": {
-      "description": "An e-commerce plartform that allows customers to buy African fashion Products",
-      "summary": "E-commerce Solution"
+      "description": "A web app written using t3-stack for managing books and other data in a library.",
+      "summary": "Library Management System"
     },
     "date": "August 2022",
     "roles": [
@@ -56,7 +56,7 @@
       {
         "type": "web",
         "text": "View Demo Site",
-        "link": "https://afrocentric-app.vercel.app/"
+        "link": "https://library-tracker.vercel.app/"
       }
   
     ]
